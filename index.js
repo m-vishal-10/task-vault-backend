@@ -5,7 +5,8 @@ require('dotenv').config();
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const taskRoutes = require('./routes/tasks');const categoryRoutes = require('./routes/categories');
+const taskRoutes = require('./routes/tasks');
+const categoryRoutes = require('./routes/categories');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,7 +20,7 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000'||'https://task-vault-frontend-dun.vercel.app',
   credentials: true
 }));
 app.use(limiter);
@@ -37,7 +38,8 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/tasks', taskRoutes);app.use('/api/categories', categoryRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
