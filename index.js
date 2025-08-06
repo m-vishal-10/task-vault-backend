@@ -20,7 +20,12 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000'||'https://task-vault-frontend-dun.vercel.app',
+  origin: [
+    process.env.CORS_ORIGIN, 
+    'http://localhost:3000',
+    'https://task-vault-frontend-nhmenbsym-m-vishal-10s-projects.vercel.app',
+    'https://task-vault-frontend-dun.vercel.app'
+  ],
   credentials: true
 }));
 app.use(limiter);
