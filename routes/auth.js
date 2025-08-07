@@ -145,19 +145,62 @@ router.post('/forgot-password', async (req, res) => {
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
-  // Always respond with success to prevent user enumeration
-  const genericMsg = 'If an account with that email exists, a password reset link has been sent.';
+  
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`
+    });
+    
     if (error) {
-      // Log error but do not reveal to user
       console.error('Supabase resetPasswordForEmail error:', error);
+      return res.status(400).json({ error: error.message });
     }
-    return res.json({ message: genericMsg });
+    
+    return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
   } catch (err) {
     console.error('Forgot password error:', err);
-    return res.json({ message: genericMsg });
+    return res.status(500).json({ error: 'Failed to send reset email' });
   }
 });
 
-module.exports = router; 
+// Handle password reset with token from Supabase email
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { access_token, refresh_token, new_password } = req.body;
+    
+    if (!access_token || !new_password) {
+      return res.status(400).json({ error: 'Access token and new password are required' });
+    }
+    
+    // Create a client session with the tokens from the URL
+    const { data, error } = await supabase.auth.setSession({
+      access_token,
+      refresh_token
+    });
+    
+    if (error) {
+      console.error('Session setup error:', error);
+      return res.status(401).json({ error: 'Invalid or expired reset token' });
+    }
+    
+    // Update the password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: new_password
+    });
+    
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      return res.status(400).json({ error: updateError.message });
+    }
+    
+    // Sign out after password reset
+    await supabase.auth.signOut();
+    
+    return res.json({ message: 'Password reset successfully. Please sign in with your new password.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+module.exports = router;
