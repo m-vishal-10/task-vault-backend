@@ -139,7 +139,7 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// Forgot Password - Request Reset Link
+// Request password reset email using Supabase built-in flow
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -148,72 +148,15 @@ router.post('/forgot-password', async (req, res) => {
   // Always respond with success to prevent user enumeration
   const genericMsg = 'If an account with that email exists, a password reset link has been sent.';
   try {
-    // Find user by email
-    const { data: user, error: userError } = await supabaseAdmin.auth.admin.listUsers({ email });
-    if (userError || !user || !user.users || user.users.length === 0) {
-      return res.json({ message: genericMsg });
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      // Log error but do not reveal to user
+      console.error('Supabase resetPasswordForEmail error:', error);
     }
-    const foundUser = user.users[0];
-    // Generate token
-    const token = crypto.randomBytes(32).toString('hex');
-    const tokenHash = await bcrypt.hash(token, 10);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-    // Store in password_resets
-    await supabaseAdmin.from('password_resets').insert({
-      user_id: foundUser.id,
-      email,
-      token_hash: tokenHash,
-      expires_at: expiresAt.toISOString(),
-      used: false
-    });
-    // Simulate email (log link)
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
-    console.log(`[Password Reset] Send this link to user: ${resetUrl}`);
     return res.json({ message: genericMsg });
   } catch (err) {
     console.error('Forgot password error:', err);
     return res.json({ message: genericMsg });
-  }
-});
-
-// Reset Password - Set New Password
-router.post('/reset-password', async (req, res) => {
-  const { email, token, newPassword } = req.body;
-  if (!email || !token || !newPassword) {
-    return res.status(400).json({ error: 'Email, token, and new password are required' });
-  }
-  try {
-    // Find latest valid reset token
-    const { data: resets, error: resetError } = await supabaseAdmin
-      .from('password_resets')
-      .select('*')
-      .eq('email', email)
-      .eq('used', false)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (resetError || !resets || resets.length === 0) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-    const reset = resets[0];
-    if (new Date(reset.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' });
-    }
-    // Compare token
-    const valid = await bcrypt.compare(token, reset.token_hash);
-    if (!valid) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-    // Update password via Supabase Admin
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(reset.user_id, { password: newPassword });
-    if (updateError) {
-      return res.status(500).json({ error: 'Failed to reset password' });
-    }
-    // Mark token as used
-    await supabaseAdmin.from('password_resets').update({ used: true }).eq('id', reset.id);
-    return res.json({ message: 'Password has been reset successfully. You can now sign in.' });
-  } catch (err) {
-    console.error('Reset password error:', err);
-    return res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
